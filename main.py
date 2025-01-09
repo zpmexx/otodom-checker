@@ -20,6 +20,7 @@ import sqlite3
 import sys
 from pathlib import Path
 import csv
+import re
 try:
     file_name = Path(__file__).stem
 except:
@@ -112,17 +113,29 @@ csv_file_path = "real_estate_listings.csv"
 with open(csv_file_path, mode="w", newline="", encoding="utf-8") as file:
     writer = csv.writer(file)
     # Write the header row
-    writer.writerow(["Title", "Address", "Price", "Rooms", "Size", "Rent"])
+    writer.writerow(["Link","Title", "City","Region",'Street', "Price", "Rooms", "Size", "Rent",'Ifrent','Price+Rent'])
     while True:
         try:
             observed_link = f'https://www.otodom.pl/pl/zapisane/ogloszenia?page={counter}'
             driver.get(observed_link)
+            
+            print(driver.current_url)
+            try:
+                page_number = re.search(r'\d+', driver.current_url).group()
+                print(page_number)
+                
+                if int(page_number) != counter:
+                    print("KAROL")
+                    break
+            except Exception as e:
+                print(e)
+            
 
             # Wait for the page to load
-            time.sleep(3)
 
             # Locate all parent containers of the elements
-            elements = driver.find_elements(By.CSS_SELECTOR, '.css-6bzbqw')  # Adjust the selector to match the container
+            elements = driver.find_elements(By.CSS_SELECTOR, 'li[data-cy="single-saved-ad"]')  # Adjust the selector to match the container
+    
 
             # Loop through each container to extract data
             for element in elements:
@@ -133,11 +146,37 @@ with open(csv_file_path, mode="w", newline="", encoding="utf-8") as file:
                     rooms = element.find_elements(By.CSS_SELECTOR, '.css-1cyxwvy')[1].text.strip()
                     size = element.find_elements(By.CSS_SELECTOR, '.css-1cyxwvy')[2].text.strip()
                     rent = element.find_element(By.CSS_SELECTOR, '.css-5qfobm').text.strip()
+                    link = element.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
+
                     
+                    # remove zł from price
+                    price = price[:-3]
+
+                    # find rent value if exists
+                    rentprice =  re.search(r'\d+', rent)
+                    if rentprice:
+                        rent = rentprice.group()
+                        ifRent = True
+                    else:
+                        rent = 0
+                        ifRent = False
+                        
+                    # Split address
+                    try:
+                        parts = address.split(',')
+                        city,region,street = parts[0],parts[1],parts[2]
+                    except:
+                        city = parts[0] if len(parts) > 0 else None
+                        region = parts[1] if len(parts) > 1 else None
+                        street = parts[2] if len(parts) > 2 else None
+                    
+                    price_rent = float(price) + float(rent)
+                        
                     # Write the data to the CSV file
-                    writer.writerow([title, address, price, rooms, size, rent])
+                    writer.writerow([link,title, city,region,street, price, rooms, size, rent,ifRent,price_rent])
 
                     # Print extracted variables (optional for debugging)
+                    print(f"Link: {link}")
                     print(f"Title: {title}")
                     print(f"Address: {address}")
                     print(f"Price: {price}")
